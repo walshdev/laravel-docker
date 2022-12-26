@@ -1,0 +1,86 @@
+version: '3'
+
+######### Services ###################################
+
+services:
+  # Server container
+  caddy:
+    build:
+      context: docker/caddy
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www/
+      - ./docker/caddy/dev/Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - php
+      - supervisor
+      - adminer
+    env_file:
+      - ./.env
+
+  # PHP FastCGI Process Manager container
+  php:
+    build:
+      context: docker/php
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www
+    environment:
+      # If you down want to use xDebug, set remote_enable=0
+      XDEBUG_CONFIG: "remote_enable=1"
+      PHP_IDE_CONFIG: "serverName=Docker"
+    depends_on:
+      - postgres
+      - redis
+      - supervisor
+
+  # Supervisor container (schedule and queue runner)
+  supervisor:
+    build:
+      context: docker/supervisor
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www/
+      - ./docker/supervisor/conf.d:/etc/supervisor/conf.d
+      - ./docker/supervisor/logs:/var/log
+    depends_on:
+      - postgres
+      - redis
+
+  # PostgreSQL database container
+  postgres:
+    build:
+      context: docker/postgres
+      dockerfile: Dockerfile
+    volumes:
+      # Database volume
+      - database:/var/lib/postgresql/data
+      # Temp volume to allow using dumps
+      - ./docker/postgres/dumps/:/tmp/
+    environment:
+      - LC_ALL=C.UTF-8
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+
+  # Redis container
+  redis:
+    build:
+      context: docker/redis
+      dockerfile: Dockerfile
+    volumes:
+      - redis:/data
+
+  # Adminer container
+  adminer:
+    build:
+      context: docker/adminer
+      dockerfile: Dockerfile
+
+######### Volumes ###################################
+
+volumes:
+  database:
+    driver: local
+  redis:
+    driver: local
